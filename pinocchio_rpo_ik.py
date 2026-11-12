@@ -22,30 +22,11 @@ def rpy_to_rot(roll: float, pitch: float, yaw: float) -> np.ndarray:
     cy, sy = np.cos(pitch), np.sin(pitch)
     cz, sz = np.cos(yaw), np.sin(yaw)
 
-    rx = np.array(
-        [
-            [1.0, 0.0, 0.0],
-            [0.0, cx, -sx],
-            [0.0, sx, cx],
-        ]
-    )
-    ry = np.array(
-        [
-            [cy, 0.0, sy],
-            [0.0, 1.0, 0.0],
-            [-sy, 0.0, cy],
-        ]
-    )
-    rz = np.array(
-        [
-            [cz, -sz, 0.0],
-            [sz, cz, 0.0],
-            [0.0, 0.0, 1.0],
-        ]
-    )
+    rx = np.array([[1.0, 0.0, 0.0], [0.0, cx, -sx], [0.0, sx, cx]])
+    ry = np.array([[cy, 0.0, sy], [0.0, 1.0, 0.0], [-sy, 0.0, cy]])
+    rz = np.array([[cz, -sz, 0.0], [sz, cz, 0.0], [0.0, 0.0, 1.0]])
 
-    # TODO 1: Compose roll, pitch, and yaw in the course's RPY order.
-    raise NotImplementedError
+    return rz @ ry @ rx
 
 
 def create_urdf_with_absolute_mesh_paths(urdf_path: Path) -> Path:
@@ -142,15 +123,11 @@ def solve_pose_ik_right_leg(
         current_p = current_pose.translation
         current_R = current_pose.rotation
 
-        # Pinocchio evaluates the rotation logarithm; the IK reasoning uses
-        # the resulting three-component orientation error.
         orientation_error = pin.log3(target.R @ current_R.T)
 
-        # TODO 2: Calculate the desired-minus-current position error.
-        position_error = None
+        position_error = target.p - current_p
 
-        # TODO 3: Build the weighted six-dimensional pose-error vector.
-        error = None
+        error = np.concatenate([position_error, orientation_weight * orientation_error])
 
         return error, np.linalg.norm(error), current_p, current_R, position_error, orientation_error
 
@@ -177,20 +154,27 @@ def solve_pose_ik_right_leg(
             pin.ReferenceFrame.LOCAL_WORLD_ALIGNED,
         )
 
-        # TODO 4: Select the right-leg columns and apply orientation_weight
-        # to the rotational rows.
-        task_jacobian = None
+        task_jacobian = full_jacobian[:, v_indices].copy()
+        task_jacobian[3:, :] *= orientation_weight
 
-        # TODO 5: Calculate the damped least-squares right-leg update.
-        dq_leg = None
+        J = task_jacobian
+        dq_leg = J.T @ np.linalg.solve(J @ J.T + damping * np.eye(6), pose_error)
 
         accepted = False
 
         for scale in [alpha, alpha * 0.5, alpha * 0.25, alpha * 0.1, alpha * 0.05]:
             q_candidate = q.copy()
 
-            # TODO 6: Apply the scaled update, enforce the joint limit, and
-            # accept only a candidate that reduces the pose-error norm.
+            for i, qi in enumerate(q_indices):
+                q_candidate[qi] = np.clip(
+                    q_candidate[qi] + scale * dq_leg[i], -joint_limit_rad, joint_limit_rad
+                )
+
+            candidate_norm = compute_error(q_candidate)[1]
+            if candidate_norm < error_norm:
+                q = q_candidate
+                accepted = True
+                break
 
         if not accepted:
             print("  update rejected: no smaller step reduced the error")
@@ -221,7 +205,6 @@ def main() -> None:
 
     q = pin.neutral(model)
 
-    # Initial guess: force the IK to start from the opposite knee branch.
     q[get_joint_q_index(model, "right_knee_joint")] = 0.90
     q[get_joint_q_index(model, "right_ankle_pitch_joint")] = -0.5
 
@@ -255,9 +238,10 @@ def main() -> None:
 
     to_rad = np.pi / 180.0
 
-    # TODO 7: Define a target that moves the right foot 0.6 m forward,
-    # 0.1 m upward, and pitches it by -30 degrees from its initial attitude.
-    right_foot = None
+    right_foot = Pose(
+        p=initial_p + np.array([0.6, 0.0, 0.1]),
+        R=initial_R @ rpy_to_rot(0.0, -30.0 * to_rad, 0.0),
+    )
 
     print("RPO pose numerical IK test")
     print("URDF:", urdf_path)
@@ -332,3 +316,10 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# Verification answers:
+# 1. A target relative to the measured pose is reachable and consistent with the robot's real geometry and frame placement.
+# 2. IK converges to the solution nearest the initial guess, so the positive knee guess selects that knee-bend branch.
+# 3. Weighting both keeps the error and the Jacobian consistent; otherwise the update solves a mismatched problem.
+# 4. Near singularities J J^T is ill-conditioned; damping prevents huge, unstable joint steps.
+# 5. A full step can overshoot in this nonlinear problem; smaller scales help find a step that actually reduces the error.
