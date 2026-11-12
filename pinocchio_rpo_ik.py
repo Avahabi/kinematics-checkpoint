@@ -1,4 +1,4 @@
-"""Pose numerical IK on Atom01/RPO using Pinocchio, then visualize in Panda3D."""
+"""Pose numerical IK on RPO using Pinocchio, then visualize in Panda3D."""
 
 from __future__ import annotations
 
@@ -44,7 +44,8 @@ def rpy_to_rot(roll: float, pitch: float, yaw: float) -> np.ndarray:
         ]
     )
 
-    return rz @ ry @ rx
+    # TODO 1: Compose roll, pitch, and yaw in the course's RPY order.
+    raise NotImplementedError
 
 
 def create_urdf_with_absolute_mesh_paths(urdf_path: Path) -> Path:
@@ -141,17 +142,15 @@ def solve_pose_ik_right_leg(
         current_p = current_pose.translation
         current_R = current_pose.rotation
 
-        position_error = target.p - current_p
-
-        # Desired orientation relative to current orientation.
+        # Pinocchio evaluates the rotation logarithm; the IK reasoning uses
+        # the resulting three-component orientation error.
         orientation_error = pin.log3(target.R @ current_R.T)
 
-        error = np.hstack(
-            [
-                position_error,
-                orientation_weight * orientation_error,
-            ]
-        )
+        # TODO 2: Calculate the desired-minus-current position error.
+        position_error = None
+
+        # TODO 3: Build the weighted six-dimensional pose-error vector.
+        error = None
 
         return error, np.linalg.norm(error), current_p, current_R, position_error, orientation_error
 
@@ -178,33 +177,20 @@ def solve_pose_ik_right_leg(
             pin.ReferenceFrame.LOCAL_WORLD_ALIGNED,
         )
 
-        task_jacobian = full_jacobian[:, v_indices].copy()
-        task_jacobian[3:, :] *= orientation_weight
+        # TODO 4: Select the right-leg columns and apply orientation_weight
+        # to the rotational rows.
+        task_jacobian = None
 
-        dq_leg = task_jacobian.T @ np.linalg.solve(
-            task_jacobian @ task_jacobian.T + damping * np.eye(6),
-            pose_error,
-        )
+        # TODO 5: Calculate the damped least-squares right-leg update.
+        dq_leg = None
 
         accepted = False
 
         for scale in [alpha, alpha * 0.5, alpha * 0.25, alpha * 0.1, alpha * 0.05]:
             q_candidate = q.copy()
 
-            for q_index, delta in zip(q_indices, dq_leg):
-                q_candidate[q_index] += scale * delta
-                q_candidate[q_index] = np.clip(
-                    q_candidate[q_index],
-                    -joint_limit_rad,
-                    joint_limit_rad,
-                )
-
-            _, candidate_error_norm, *_ = compute_error(q_candidate)
-
-            if candidate_error_norm < error_norm:
-                q = q_candidate
-                accepted = True
-                break
+            # TODO 6: Apply the scaled update, enforce the joint limit, and
+            # accept only a candidate that reduces the pose-error norm.
 
         if not accepted:
             print("  update rejected: no smaller step reduced the error")
@@ -269,13 +255,11 @@ def main() -> None:
 
     to_rad = np.pi / 180.0
 
-    # Desired right-foot pose: forward, a bit up, and pitched.
-    right_foot = Pose(
-        p=initial_p + np.array([0.6, 0.0, 0.1]),
-        R=initial_R @ rpy_to_rot(0.0, -30.0 * to_rad, 0.0),
-    )
+    # TODO 7: Define a target that moves the right foot 0.6 m forward,
+    # 0.1 m upward, and pitches it by -30 degrees from its initial attitude.
+    right_foot = None
 
-    print("Atom01/RPO pose numerical IK test")
+    print("RPO pose numerical IK test")
     print("URDF:", urdf_path)
     print("Target frame:", model.frames[right_foot_frame].name)
     print()
@@ -337,11 +321,11 @@ def main() -> None:
 
     viz = Panda3dVisualizer(model, collision_model, visual_model)
     viz.initViewer()
-    viz.loadViewerModel("atom01_rpo_pose_ik")
+    viz.loadViewerModel("rpo_pose_ik")
     viz.display(q_solution)
 
     print()
-    print("Panda3D is displaying the Atom01/RPO pose-IK result.")
+    print("Panda3D is displaying the RPO pose-IK result.")
     print("Close the Panda3D window, then press Enter here to finish.")
     input()
 

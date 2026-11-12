@@ -123,8 +123,8 @@ def set_random_leg_angles(links: list[Link | None], rng: np.random.Generator) ->
     forward_kinematics(links, BODY)
 
 
-def set_initial_bent_leg_posture(links: list[Link | None]) -> None:
-    """Move the toy biped to its initial non-singular bent-leg posture."""
+def go_half_sitting(links: list[Link | None]) -> None:
+    """Move the toy biped to a non-singular half-sitting pose."""
     to_rad = np.pi / 180.0
     links[RLEG_J2].q = -5.0 * to_rad
     links[RLEG_J3].q = 10.0 * to_rad
@@ -137,8 +137,3 @@ def set_initial_bent_leg_posture(links: list[Link | None]) -> None:
     links[BODY].p = np.array([0.0, 0.0, 0.7])
     links[BODY].R = np.eye(3)
     forward_kinematics(links, BODY)
-
-
-def go_half_sitting(links: list[Link | None]) -> None:
-    """Compatibility wrapper for earlier course scripts."""
-    set_initial_bent_leg_posture(links)

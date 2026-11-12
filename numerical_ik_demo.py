@@ -18,14 +18,14 @@ def solve_two_foot_targets() -> tuple[list, float, float]:
     go_half_sitting(links)
 
     right_foot = Pose(
-        p=np.array([0.2, -0.1, 0.4]),
-        R=rpy_to_rot(0.0, -10.0 * to_rad, 0.0),
+        p=np.array([-0.3, -0.1, 0.0]),
+        R=rpy_to_rot(0.0, 20.0 * to_rad, 0.0),
     )
     right_error = inverse_kinematics(links, RLEG_J5, right_foot)
 
     left_foot = Pose(
-        p=np.array([0.0, 0.11, 0.0]),
-        R=rpy_to_rot(0.0, 0.0 * to_rad, 0.0),
+        p=np.array([0.3, 0.1, 0.0]),
+        R=rpy_to_rot(0.0, -30.0 * to_rad, 0.0),
     )
     left_error = inverse_kinematics(links, LLEG_J5, left_foot)
 

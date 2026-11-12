@@ -8,21 +8,11 @@ from matplotlib.widgets import Button
 
 from inverse_kinematics import Pose, inverse_kinematics
 from kinematics import rpy_to_rot
-from robot_model import (
-    LLEG_J5,
-    RLEG_J5,
-    set_initial_bent_leg_posture,
-    setup_biped_robot,
-)
+from robot_model import LLEG_J5, RLEG_J5, go_half_sitting, setup_biped_robot
 from visualization import draw_all_joints, set_biped_axes
 
 
-def quadratic_bezier(
-    p0: np.ndarray,
-    p1: np.ndarray,
-    p2: np.ndarray,
-    s: float,
-) -> np.ndarray:
+def quadratic_bezier(p0: np.ndarray, p1: np.ndarray, p2: np.ndarray, s: float) -> np.ndarray:
     """Return one point on a quadratic Bezier curve."""
     # TODO 1: Implement B(s) using p0, p1, p2, and s.
     raise NotImplementedError
@@ -61,13 +51,12 @@ def make_left_foot_target(initial_p: np.ndarray) -> Pose:
 
 
 def copy_links(links: list) -> list:
-    """Create an independent copy of the robot state for one viewer frame."""
+    """Create a light copy of the link list for animation frames."""
     copied = []
     for link in links:
         if link is None:
             copied.append(None)
             continue
-
         new_link = type(link)(
             name=link.name,
             mass=link.mass,
@@ -86,10 +75,10 @@ def copy_links(links: list) -> list:
     return copied
 
 
-def solve_bezier_motion(num_points: int = 35) -> tuple[list[list], np.ndarray, list[float]]:
-    """Solve IK and store one independent robot state per path sample."""
+def solve_bezier_motion_with_copies(num_points: int = 35) -> tuple[list[list], np.ndarray, list[float]]:
+    """Solve IK and store independent robot states for each animation frame."""
     links = setup_biped_robot()
-    set_initial_bent_leg_posture(links)
+    go_half_sitting(links)
 
     initial_right_foot_p = links[RLEG_J5].p.copy()
     initial_left_foot_p = links[LLEG_J5].p.copy()
@@ -112,8 +101,8 @@ def solve_bezier_motion(num_points: int = 35) -> tuple[list[list], np.ndarray, l
 
 
 def show_step_viewer() -> None:
-    """Open a viewer with buttons for stepping through the IK result."""
-    frames, path_points, errors = solve_bezier_motion()
+    """Open a Matplotlib viewer with buttons for stepping through the IK result."""
+    frames, path_points, errors = solve_bezier_motion_with_copies()
     state = {"frame_id": 0}
 
     figure = plt.figure(figsize=(7, 6))
@@ -140,20 +129,17 @@ def show_step_viewer() -> None:
             color="crimson",
             s=35,
         )
-        ax.set_title(
-            f"Bezier IK frame {frame_id + 1}/{len(frames)} | "
-            f"error {errors[frame_id]:.2e}"
-        )
+        ax.set_title(f"Bezier IK frame {frame_id + 1}/{len(frames)} | error {errors[frame_id]:.2e}")
         ax.legend(loc="upper left")
         figure.canvas.draw_idle()
 
     def step_backward(_event) -> None:
-        # TODO 7: Decrease frame_id without going below zero, then redraw.
-        pass
+        state["frame_id"] = max(0, state["frame_id"] - 1)
+        draw_current_frame()
 
     def step_forward(_event) -> None:
-        # TODO 8: Increase frame_id without passing the last frame, then redraw.
-        pass
+        state["frame_id"] = min(len(frames) - 1, state["frame_id"] + 1)
+        draw_current_frame()
 
     back_ax = figure.add_axes([0.30, 0.04, 0.16, 0.07])
     forward_ax = figure.add_axes([0.54, 0.04, 0.16, 0.07])

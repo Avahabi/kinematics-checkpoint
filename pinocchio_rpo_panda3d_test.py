@@ -1,4 +1,4 @@
-"""Load RoboParty Atom01/RPO from URDF, analyze it with Pinocchio, and view it in Panda3D."""
+"""Load RoboParty RPO from URDF, analyze it with Pinocchio, and view it in Panda3D."""
 
 from __future__ import annotations
 
@@ -82,7 +82,7 @@ def main() -> None:
     com = pin.centerOfMass(model, data, q, v)
     com_jacobian = pin.jacobianCenterOfMass(model, data, q)
 
-    print("RoboParty Atom01/RPO loaded from URDF")
+    print("RoboParty RPO loaded from URDF")
     print("Original URDF:", urdf_path)
     print("Temporary URDF:", patched_urdf_path)
     print(f"configuration dimension nq: {model.nq}")
@@ -103,10 +103,10 @@ def main() -> None:
 
     viz = Panda3dVisualizer(model, collision_model, visual_model)
     viz.initViewer()
-    viz.loadViewerModel("atom01_rpo")
+    viz.loadViewerModel("rpo")
     viz.display(q)
 
-    print("Panda3D is displaying the RoboParty Atom01/RPO URDF model.")
+    print("Panda3D is displaying the RoboParty RPO URDF model.")
     print("Close the Panda3D window, then press Enter here to finish.")
     input()
 
