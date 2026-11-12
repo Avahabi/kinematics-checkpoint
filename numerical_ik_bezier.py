@@ -14,27 +14,23 @@ from visualization import draw_all_joints, set_biped_axes
 
 def quadratic_bezier(p0: np.ndarray, p1: np.ndarray, p2: np.ndarray, s: float) -> np.ndarray:
     """Return one point on a quadratic Bezier curve."""
-    # TODO 1: Implement B(s) using p0, p1, p2, and s.
-    raise NotImplementedError
+    return (1 - s) ** 2 * p0 + 2 * (1 - s) * s * p1 + s ** 2 * p2
 
 
 def make_right_foot_target(s: float, initial_p: np.ndarray) -> Pose:
     """Build the desired right-foot pose at normalized path coordinate s."""
     to_rad = np.pi / 180.0
 
-    # TODO 2: Define the control and final positions relative to initial_p.
-    intermediate_p = None
-    final_p = None
+    intermediate_p = initial_p + np.array([0.2, 0.0, 0.30])
+    final_p = initial_p + np.array([0.4, 0.0, 0.20])
 
-    # TODO 3: Evaluate the Bezier position at s.
-    position = None
+    position = quadratic_bezier(initial_p, intermediate_p, final_p, s)
 
     initial_pitch = 0.0 * to_rad
     intermediate_pitch = -10.0 * to_rad
     final_pitch = -20.0 * to_rad
 
-    # TODO 4: Interpolate pitch with the same quadratic Bezier rule.
-    pitch = None
+    pitch = (1 - s) ** 2 * initial_pitch + 2 * (1 - s) * s * intermediate_pitch + s ** 2 * final_pitch
 
     return Pose(
         p=position,
@@ -91,11 +87,12 @@ def solve_bezier_motion_with_copies(num_points: int = 35) -> tuple[list[list], n
     for s in np.linspace(0.0, 1.0, num_points):
         right_foot = make_right_foot_target(float(s), initial_right_foot_p)
 
-        # TODO 5: Solve the fixed left-foot target and moving right-foot target.
-        left_error = None
-        right_error = None
+        left_error = inverse_kinematics(links, LLEG_J5, left_foot)
+        right_error = inverse_kinematics(links, RLEG_J5, right_foot)
 
-        # TODO 6: Store an independent robot state, target point, and largest error.
+        solved_frames.append(copy_links(links))
+        path_points.append(right_foot.p.copy())
+        errors.append(float(max(np.max(np.abs(left_error)), np.max(np.abs(right_error)))))
 
     return solved_frames, np.array(path_points), errors
 
@@ -159,3 +156,10 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# Verification answers:
+# 1. Using the measured foot position as P0 makes the first target equal the actual pose, so there is no jump at the start.
+# 2. No. P1 is a control point that pulls the curve; the curve only passes through P0 and P2.
+# 3. The previous solution is close to the next one, so the solver converges faster and stays on the same continuous branch.
+# 4. The links list is mutable and changes on every IK call; without copies, every frame would show the last state.
+# 5. The left foot is the stance/support foot in contact with the ground.
